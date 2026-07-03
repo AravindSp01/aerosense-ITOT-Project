@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: aerosense-kafka
+    ports:
+      - "9092:9092" # Exposed to the host machine for the Webots controller
+    environment:
+      # KRaft Mode Controller & Broker Configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      
+      # Listeners configuration for external (host) and internal (docker) mapping
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      
+      # Auto-create telemetry topic on startup if it doesn't exist
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 2
+      # Static cluster ID required for standalone KRaft environments
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - aerosense-net
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: aerosense-kafka-ui
+    ports:
+      - "8080:8080" # Access via http://localhost:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: 'aerosense-local'
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafka:29092'
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: aerosense-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_secure_password # Match this with config/settings.py
+      POSTGRES_DB: aerosense
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aerosense-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aerosense"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  aerosense-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
