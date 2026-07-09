@@ -33,16 +33,16 @@ except ImportError as _err:
 MISSION_ID = os.environ.get("AEROSENSE_MISSION_ID", "m-001")
 VEHICLE_ID = os.environ.get("AEROSENSE_VEHICLE_ID", "drone-alpha")
 
-# --------------------------------------------------------------------------- #
+##--##
 # Flight constants -- single source of truth for this file only.
-# --------------------------------------------------------------------------- #
+##--##
 
-K_VERTICAL_THRUST = 68.5  # from Cyberbotics official sample -- do not change
-K_VERTICAL_OFFSET = 0.6
-K_VERTICAL_P = 3.0
-K_ROLL_P = 50.0
-K_PITCH_P = 30.0
-K_YAW_P = 1.0
+K_VERTICAL_THRUST = 68.5  # from Cyberbotics official sample -- do not change # Power required to hover
+K_VERTICAL_OFFSET = 0.6 # To compensate for altitude bias
+K_VERTICAL_P = 3.0 # To compensate for altitude gain
+K_ROLL_P = 50.0 # LR Stabilisation
+K_PITCH_P = 30.0 # FB Stabilization
+K_YAW_P = 1.0 # Heading correction
 K_YAW_D = 1.2  # yaw-rate damping -- prevents circling
 
 TARGET_X = 150.0
@@ -51,27 +51,36 @@ CRUISE_ALTITUDE = 20.0
 ARRIVAL_RADIUS = 5.0
 TELEMETRY_PERIOD = 1.0  # seconds of sim time between telemetry ticks
 
-MAX_PITCH_DISTURBANCE = -4.0
+MAX_PITCH_DISTURBANCE = -4.0 # Artificial forward tilt bias when moving
 
-WIND_BASE_N = 0.6
-WIND_GUST_N = 1.8
-WIND_PERIOD_S = 6.0
+WIND_BASE_N = 0.6 # const wind
+WIND_GUST_N = 1.8 # sudden gust sim
+WIND_PERIOD_S = 6.0 #cycle repeat
 
 BATTERY_CAPACITY = 100.0
 BATTERY_DRAIN_RATE = 0.0006  # percent per motor-unit per second
 
 LIDAR_DEFAULT = 30.0  # proxy value until a real distance sensor is added
 
+# Lidar can be implemented in the VRML file and it provides a few options like "Range Image" and "Point Cloud (Adv)"
+# Point could can help with 3D perception, obstacle mapping etc.
+# Not integrated here since I'm running this on a laptop to keep cost $0
 
-# --------------------------------------------------------------------------- #
+
+##--##
 # Structured stdlib logger (structlog lives in the bridge layer, not here)
-# --------------------------------------------------------------------------- #
+# Structuring the logs helps to easily ingest data to kafka, elasticsearch etc, and with the monitoring
+
+# The drone controller uses a lightweight built-in JSON logger, while advanced structured logging (structlog) 
+# is reserved for the external telemetry/bridge system to avoid coupling simulation logic with 
+# infrastructure dependencies. 
+##--##
 
 
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {"level": record.levelname, "logger": record.name, "message": record.getMessage()}
-        if hasattr(record, "extra_fields"):
+        if hasattr(record, "extra_fields"): # If the log call included extra structured data, it gets merged in.
             payload.update(record.extra_fields)
         return json.dumps(payload)
 
@@ -90,9 +99,9 @@ def _log(log: logging.Logger, msg: str, **fields) -> None:
     log.info(msg, extra={"extra_fields": fields})
 
 
-# --------------------------------------------------------------------------- #
+##--##
 # Pure flight helpers
-# --------------------------------------------------------------------------- #
+##--##
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
@@ -100,7 +109,6 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 
 
 def _vertical_input(target_alt: float, alt: float) -> float:
-    """Cubic-clamp formula from Cyberbotics official Mavic2Pro sample."""
     clamped = _clamp(target_alt - alt + K_VERTICAL_OFFSET, -1.0, 1.0)
     return K_VERTICAL_P * (clamped**3.0)
 
@@ -116,9 +124,9 @@ def _wind_force(sim_time: float, rng: random.Random) -> tuple[float, float, floa
     return (magnitude * math.cos(angle), magnitude * math.sin(angle), 0.0)
 
 
-# --------------------------------------------------------------------------- #
+##--##
 # Main
-# --------------------------------------------------------------------------- #
+##--##
 
 
 def main() -> None:
@@ -185,7 +193,6 @@ def main() -> None:
         bridge=int(_BRIDGE_AVAILABLE),
     )
 
-    # One-second settle (mirrors official Webots sample).
     while robot.step(ts) != -1:
         if robot.getTime() > 1.0:
             break
