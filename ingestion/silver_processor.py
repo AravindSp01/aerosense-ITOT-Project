@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import structlog
 from pydantic import ValidationError
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from config.settings import settings
 from db.models import BronzeTelemetry, SilverTelemetry
@@ -68,19 +68,23 @@ def process_batch() -> tuple[int, int]:
     rejected = 0
 
     with get_session() as session:
-        rows = session.execute(
-            select(BronzeTelemetry)
-            .where(BronzeTelemetry.processed_to_silver == 0)
-            .order_by(BronzeTelemetry.id)
-            .limit(100)
-        ).scalars().all()
+        rows = (
+            session.execute(
+                select(BronzeTelemetry)
+                .where(BronzeTelemetry.processed_to_silver == 0)
+                .order_by(BronzeTelemetry.id)
+                .limit(100)
+            )
+            .scalars()
+            .all()
+        )
 
         for bronze in rows:
             try:
                 validated = TelemetryMessage.model_validate(bronze.raw_payload)
                 silver = _flatten(bronze, validated)
                 session.add(silver)
-                bronze.processed_to_silver = 1
+                bronze.processed_to_silver = True
                 written += 1
             except ValidationError as exc:
                 logger.warning(
@@ -88,9 +92,9 @@ def process_batch() -> tuple[int, int]:
                     bronze_id=bronze.id,
                     errors=exc.error_count(),
                 )
-                bronze.processed_to_silver = 1  # mark done so we don't retry indefinitely
+                bronze.processed_to_silver = True  # mark done so we don't retry indefinitely
                 rejected += 1
-            except Exception as exc:
+            except (ValueError, TypeError, KeyError) as exc:
                 logger.error("silver_unexpected_error", bronze_id=bronze.id, error=str(exc))
                 rejected += 1
 

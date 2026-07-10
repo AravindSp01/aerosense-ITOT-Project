@@ -1,10 +1,10 @@
 """Wrapper for Apache Kafka production to stream drone telemetry data safely."""
 
 import json
+from builtins import BufferError
 
 import structlog
-from confluent_kafka import KafkaException, KafkaError, Message, Producer
-from builtins import BufferError
+from confluent_kafka import KafkaError, KafkaException, Message, Producer
 
 from config.settings import Settings
 

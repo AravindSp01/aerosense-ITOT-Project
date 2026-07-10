@@ -6,10 +6,9 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from db.models import BronzeTelemetry
 from ingestion.silver_processor import _flatten
-from db.models import BronzeTelemetry, SilverTelemetry
 from validation.schemas import TelemetryMessage
-from datetime import datetime, timezone
 
 VALID_PAYLOAD = {
     "timestamp": "2026-07-03T06:32:40.251018+00:00",

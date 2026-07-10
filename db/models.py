@@ -41,6 +41,7 @@ class BronzeTelemetry(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
 
+
 class SilverTelemetry(Base):
     """Validated, flattened telemetry. One row per valid bronze record.
     Columns are typed and named for direct query use — no JSON blobs."""
@@ -79,8 +80,8 @@ class SilverTelemetry(Base):
     camera_object_count: Mapped[int] = mapped_column(Integer, nullable=False)
 
     processed_to_gold: Mapped[bool] = mapped_column(
-    Integer, nullable=False, default=0, server_default="0"
-)
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
 
 class GoldTelemetryFeatures(Base):

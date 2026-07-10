@@ -37,12 +37,14 @@ VEHICLE_ID = os.environ.get("AEROSENSE_VEHICLE_ID", "drone-alpha")
 # Flight constants -- single source of truth for this file only.
 ##--##
 
-K_VERTICAL_THRUST = 68.5  # from Cyberbotics official sample -- do not change # Power required to hover
-K_VERTICAL_OFFSET = 0.6 # To compensate for altitude bias
-K_VERTICAL_P = 3.0 # To compensate for altitude gain
-K_ROLL_P = 50.0 # LR Stabilisation
-K_PITCH_P = 30.0 # FB Stabilization
-K_YAW_P = 1.0 # Heading correction
+K_VERTICAL_THRUST = (
+    68.5  # from Cyberbotics official sample -- do not change # Power required to hover
+)
+K_VERTICAL_OFFSET = 0.6  # To compensate for altitude bias
+K_VERTICAL_P = 3.0  # To compensate for altitude gain
+K_ROLL_P = 50.0  # LR Stabilisation
+K_PITCH_P = 30.0  # FB Stabilization
+K_YAW_P = 1.0  # Heading correction
 K_YAW_D = 1.2  # yaw-rate damping -- prevents circling
 
 TARGET_X = 150.0
@@ -51,11 +53,11 @@ CRUISE_ALTITUDE = 20.0
 ARRIVAL_RADIUS = 5.0
 TELEMETRY_PERIOD = 1.0  # seconds of sim time between telemetry ticks
 
-MAX_PITCH_DISTURBANCE = -4.0 # Artificial forward tilt bias when moving
+MAX_PITCH_DISTURBANCE = -4.0  # Artificial forward tilt bias when moving
 
-WIND_BASE_N = 0.6 # const wind
-WIND_GUST_N = 1.8 # sudden gust sim
-WIND_PERIOD_S = 6.0 #cycle repeat
+WIND_BASE_N = 0.6  # const wind
+WIND_GUST_N = 1.8  # sudden gust sim
+WIND_PERIOD_S = 6.0  # cycle repeat
 
 BATTERY_CAPACITY = 100.0
 BATTERY_DRAIN_RATE = 0.0006  # percent per motor-unit per second
@@ -71,16 +73,18 @@ LIDAR_DEFAULT = 30.0  # proxy value until a real distance sensor is added
 # Structured stdlib logger (structlog lives in the bridge layer, not here)
 # Structuring the logs helps to easily ingest data to kafka, elasticsearch etc, and with the monitoring
 
-# The drone controller uses a lightweight built-in JSON logger, while advanced structured logging (structlog) 
-# is reserved for the external telemetry/bridge system to avoid coupling simulation logic with 
-# infrastructure dependencies. 
+# The drone controller uses a lightweight built-in JSON logger, while advanced structured logging (structlog)
+# is reserved for the external telemetry/bridge system to avoid coupling simulation logic with
+# infrastructure dependencies.
 ##--##
 
 
 class _JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {"level": record.levelname, "logger": record.name, "message": record.getMessage()}
-        if hasattr(record, "extra_fields"): # If the log call included extra structured data, it gets merged in.
+        if hasattr(
+            record, "extra_fields"
+        ):  # If the log call included extra structured data, it gets merged in.
             payload.update(record.extra_fields)
         return json.dumps(payload)
 

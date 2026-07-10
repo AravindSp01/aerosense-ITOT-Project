@@ -97,7 +97,9 @@ def run() -> None:
             partition = msg.partition()
 
             try:
-                payload = json.loads(raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw)
+                payload = json.loads(
+                    raw.decode("utf-8") if isinstance(raw, bytes | bytearray) else raw
+                )
             except json.JSONDecodeError as exc:
                 logger.error("invalid_json", offset=offset, error=str(exc))
                 consumer.commit(message=msg)
@@ -106,7 +108,9 @@ def run() -> None:
             try:
                 TelemetryMessage.model_validate(payload)
             except ValidationError as exc:
-                logger.error("schema_validation_failed", offset=offset, errors=int(exc.error_count()))
+                logger.error(
+                    "schema_validation_failed", offset=offset, errors=int(exc.error_count())
+                )
                 consumer.commit(message=msg)
                 continue
 

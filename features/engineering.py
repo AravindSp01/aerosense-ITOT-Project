@@ -8,7 +8,6 @@ import polars as pl
 
 from config.settings import settings
 
-
 # The 13 feature columns the ML model trains and predicts on.
 # This list is the single source of truth -- referenced by train.py,
 # inference.py, and the API FeatureInput schema.
@@ -26,6 +25,12 @@ FEATURE_COLUMNS: list[str] = [
     "altitude_std",
     "motor_power_mean",
     "wind_force_max",
+]
+
+RISK_LEVELS: list[str] = [
+    "safe",
+    "warning",
+    "critical",
 ]
 
 
@@ -75,48 +80,59 @@ def engineer_features(rows: list[dict]) -> list[dict]:
 
     window = settings.FEATURE_WINDOW
 
-    df = df.with_columns([
-        pl.col("roll").abs().alias("abs_roll"),
-        pl.col("pitch").abs().alias("abs_pitch"),
-        pl.col("pos_z").alias("altitude"),
-    ])
+    df = df.with_columns(
+        [
+            pl.col("roll").abs().alias("abs_roll"),
+            pl.col("pitch").abs().alias("abs_pitch"),
+            pl.col("pos_z").alias("altitude"),
+        ]
+    )
 
-    df = df.with_columns([
-        pl.col("battery")
-          .rolling_mean(window_size=window, min_periods=1)
-          .alias("battery_mean"),
-        pl.col("speed")
-          .rolling_mean(window_size=window, min_periods=1)
-          .alias("speed_mean"),
-        pl.col("altitude")
-          .rolling_std(window_size=window, min_periods=1)
-          .fill_null(0.0)
-          .alias("altitude_std"),
-        pl.col("motor_power")
-          .rolling_mean(window_size=window, min_periods=1)
-          .alias("motor_power_mean"),
-        pl.col("wind_force")
-          .rolling_max(window_size=window, min_periods=1)
-          .alias("wind_force_max"),
-    ])
+    df = df.with_columns(
+        [
+            pl.col("battery").rolling_mean(window_size=window, min_samples=1).alias("battery_mean"),
+            pl.col("speed").rolling_mean(window_size=window, min_samples=1).alias("speed_mean"),
+            pl.col("altitude")
+            .rolling_std(window_size=window, min_samples=1)
+            .fill_null(0.0)
+            .alias("altitude_std"),
+            pl.col("motor_power")
+            .rolling_mean(window_size=window, min_samples=1)
+            .alias("motor_power_mean"),
+            pl.col("wind_force")
+            .rolling_max(window_size=window, min_samples=1)
+            .alias("wind_force_max"),
+        ]
+    )
 
     df = df.with_columns(
         pl.struct(["battery", "lidar_distance", "wind_force"])
-          .map_elements(
-              lambda s: assign_risk_level(
-                  s["battery"], s["lidar_distance"], s["wind_force"]
-              ),
-              return_dtype=pl.String,
-          )
-          .alias("risk_level")
+        .map_elements(
+            lambda s: assign_risk_level(s["battery"], s["lidar_distance"], s["wind_force"]),
+            return_dtype=pl.String,
+        )
+        .alias("risk_level")
     )
 
     keep = [
-        "silver_id", "mission_id", "vehicle_id", "sim_time",
-        "battery", "speed", "motor_power", "wind_force",
-        "lidar_distance", "altitude", "abs_roll", "abs_pitch",
-        "battery_mean", "speed_mean", "altitude_std",
-        "motor_power_mean", "wind_force_max", "risk_level",
+        "silver_id",
+        "mission_id",
+        "vehicle_id",
+        "sim_time",
+        "battery",
+        "speed",
+        "motor_power",
+        "wind_force",
+        "lidar_distance",
+        "altitude",
+        "abs_roll",
+        "abs_pitch",
+        "battery_mean",
+        "speed_mean",
+        "altitude_std",
+        "motor_power_mean",
+        "wind_force_max",
+        "risk_level",
     ]
 
     return df.select(keep).to_dicts()

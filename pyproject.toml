@@ -2,6 +2,7 @@
 name = "aerosense"
 version = "0.1.0"
 requires-python = ">=3.10"
+
 dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
@@ -21,6 +22,24 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
     "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "bridge*",
+    "config*",
+    "db*",
+    "features*",
+    "ingestion*",
+    "models*",
+    "validation*",
+]
+exclude = [
+    "tests*",
+    "webots*",
+    "mlartifacts*",
 ]
 
 [tool.ruff]
@@ -29,34 +48,60 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "B",    # flake8-bugbear
-    "UP",   # pyupgrade
-    "BLE",  # blind exception catch
-    "C4",   # flake8-comprehensions
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "UP",
+    "BLE",
+    "C4",
 ]
+
 ignore = [
-    "E501",  # line too long -- ruff format handles this
+    "E501",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["BLE001"]
-# drone_controller uses bare except in one place intentionally
-"webots/controllers/drone_controller/drone_controller.py" = ["BLE001", "E401"]
+"webots/controllers/drone_controller/drone_controller.py" = [
+    "BLE001",
+    "E401",
+]
 
 [tool.mypy]
 python_version = "3.10"
 strict = false
-ignore_missing_imports = true   # controller imports (webots) not available in CI
-exclude = ["webots/"]           # Webots controller can't be type-checked in CI
+ignore_missing_imports = true
+
+exclude = [
+    "webots/",
+]
+
+files = [
+    "bridge",
+    "config",
+    "db",
+    "features",
+    "ingestion",
+    "models",
+    "validation",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--tb=short -q"
 
 [tool.coverage.run]
-source = ["bridge", "ingestion", "validation", "config", "db"]
-omit = ["tests/*", "webots/*"]
+source = [
+    "bridge",
+    "ingestion",
+    "validation",
+    "config",
+    "db",
+]
+
+omit = [
+    "tests/*",
+    "webots/*",
+]

@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import pytest
-from features.engineering import assign_risk_level, engineer_features, FEATURE_COLUMNS
+
+from features.engineering import FEATURE_COLUMNS, assign_risk_level, engineer_features
 
 
-def _make_rows(n: int, battery: float = 80.0, wind: float = 2.0,
-               lidar: float = 30.0) -> list[dict]:
+def _make_rows(n: int, battery: float = 80.0, wind: float = 2.0, lidar: float = 30.0) -> list[dict]:
     """Generate n synthetic silver rows for testing."""
     return [
         {

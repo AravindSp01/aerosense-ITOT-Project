@@ -11,8 +11,8 @@ import tempfile
 from pathlib import Path
 
 import mlflow
-import mlflow.xgboost
 import mlflow.sklearn
+import mlflow.xgboost
 import numpy as np
 import structlog
 from sklearn.ensemble import RandomForestClassifier
@@ -62,7 +62,6 @@ def _train_random_forest(
     y_train: list[str],
     class_weight: dict,
 ) -> RandomForestClassifier:
-
     clf = RandomForestClassifier(
         n_estimators=200,
         max_depth=8,
@@ -93,8 +92,7 @@ def _train_xgboost(
     total = counts.sum()
 
     class_weights = {
-        cls: total / (len(classes) * count)
-        for cls, count in zip(classes, counts)
+        cls: total / (len(classes) * count) for cls, count in zip(classes, counts, strict=False)
     }
 
     sample_weight = np.array([class_weights[c] for c in y_enc])
@@ -118,16 +116,13 @@ def _train_xgboost(
 
 
 def run_training() -> None:
-
     mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
     mlflow.set_experiment(settings.MLFLOW_EXPERIMENT)
 
     X, y = load_training_data()
 
     if len(set(y)) < 2:
-        raise RuntimeError(
-            f"Only one class present in training data: {set(y)}."
-        )
+        raise RuntimeError(f"Only one class present in training data: {set(y)}.")
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -149,17 +144,11 @@ def run_training() -> None:
     # ------------------------------------------------------------
     # RandomForest class weights
     # ------------------------------------------------------------
-    counts = {
-        lbl: y_train.count(lbl)
-        for lbl in labels_present
-    }
+    counts = {lbl: y_train.count(lbl) for lbl in labels_present}
 
     total = len(y_train)
 
-    class_weight = {
-        lbl: total / (len(counts) * cnt)
-        for lbl, cnt in counts.items()
-    }
+    class_weight = {lbl: total / (len(counts) * cnt) for lbl, cnt in counts.items()}
 
     candidates = []
 
@@ -168,7 +157,6 @@ def run_training() -> None:
     # ============================================================
 
     with mlflow.start_run(run_name="random_forest") as rf_run:
-
         mlflow.log_params(
             {
                 "model_type": "RandomForest",
@@ -221,7 +209,6 @@ def run_training() -> None:
     # ============================================================
 
     with mlflow.start_run(run_name="xgboost") as xgb_run:
-
         mlflow.log_params(
             {
                 "model_type": "XGBoost",
@@ -289,7 +276,6 @@ def run_training() -> None:
     )
 
     with mlflow.start_run(run_name=f"register_{best_name}"):
-
         mlflow.log_params(
             {
                 "registered_model": best_name,
@@ -324,11 +310,9 @@ def _log_artifacts(
     run_id,
     model_name,
 ):
-
     png_b64 = confusion_matrix_png(y_true, y_pred)
 
     with tempfile.TemporaryDirectory() as tmp:
-
         png_path = Path(tmp) / "confusion_matrix.png"
 
         png_path.write_bytes(base64.b64decode(png_b64))

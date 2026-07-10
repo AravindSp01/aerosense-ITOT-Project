@@ -56,12 +56,16 @@ def process_batch() -> tuple[int, int]:
     skipped = 0
 
     with get_session() as session:
-        rows = session.execute(
-            select(SilverTelemetry)
-            .where(SilverTelemetry.processed_to_gold == 0)
-            .order_by(SilverTelemetry.sim_time)
-            .limit(200)
-        ).scalars().all()
+        rows = (
+            session.execute(
+                select(SilverTelemetry)
+                .where(SilverTelemetry.processed_to_gold == 0)
+                .order_by(SilverTelemetry.sim_time)
+                .limit(200)
+            )
+            .scalars()
+            .all()
+        )
 
         if not rows:
             return 0, 0
@@ -69,7 +73,7 @@ def process_batch() -> tuple[int, int]:
         dicts = [_silver_row_to_dict(r) for r in rows]
         feature_rows = engineer_features(dicts)
 
-        silver_ids_done = {r.id for r in rows}
+        # silver_ids_done = {r.id for r in rows}
         silver_ids_featured = {f["silver_id"] for f in feature_rows}
 
         for feature in feature_rows:
@@ -101,7 +105,7 @@ def process_batch() -> tuple[int, int]:
         # they produced a gold row (avoids reprocessing rows that were
         # excluded due to insufficient window history).
         for row in rows:
-            row.processed_to_gold = 1
+            row.processed_to_gold = True
             if row.id not in silver_ids_featured:
                 skipped += 1
 

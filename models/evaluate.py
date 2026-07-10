@@ -4,21 +4,19 @@ imports -- called by train.py which handles the logging."""
 
 from __future__ import annotations
 
-import io
 import base64
+import io
 
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
     confusion_matrix,
     f1_score,
     precision_score,
     recall_score,
     roc_auc_score,
 )
-
 
 RISK_LEVELS = ["safe", "warning", "critical"]
 
@@ -49,8 +47,11 @@ def compute_metrics(
     if len(present) > 1:
         try:
             metrics["roc_auc_ovr"] = roc_auc_score(
-                y_true, y_proba, multi_class="ovr",
-                average="macro", labels=labels,
+                y_true,
+                y_proba,
+                multi_class="ovr",
+                average="macro",
+                labels=labels,
             )
         except ValueError:
             metrics["roc_auc_ovr"] = float("nan")
@@ -67,7 +68,7 @@ def confusion_matrix_png(
     Saved as a file by train.py and logged to MLflow as an artifact."""
     cm = confusion_matrix(y_true, y_pred, labels=labels)
     fig, ax = plt.subplots(figsize=(5, 4))
-    im = ax.imshow(cm, cmap="Blues")
+    ax.imshow(cm, cmap="Blues")
     ax.set_xticks(range(len(labels)))
     ax.set_yticks(range(len(labels)))
     ax.set_xticklabels(labels)

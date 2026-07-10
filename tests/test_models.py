@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 from features.engineering import FEATURE_COLUMNS
-#from features.engineering import FEATURE_COLUMNS, RISK_LEVELS
+
+# from features.engineering import FEATURE_COLUMNS, RISK_LEVELS
 
 
 def _make_synthetic_data(n: int = 300) -> tuple[np.ndarray, list[str]]:
@@ -19,27 +19,63 @@ def _make_synthetic_data(n: int = 300) -> tuple[np.ndarray, list[str]]:
     per_class = n // 3
 
     for _ in range(per_class):  # safe
-        rows.append([rng.uniform(40, 100), rng.uniform(0, 10), rng.uniform(60, 80),
-                     rng.uniform(0, 7), rng.uniform(6, 50), rng.uniform(10, 40),
-                     rng.uniform(0, 5), rng.uniform(0, 5), rng.uniform(40, 100),
-                     rng.uniform(0, 10), rng.uniform(0, 2), rng.uniform(60, 80),
-                     rng.uniform(0, 7)])
+        rows.append(
+            [
+                rng.uniform(40, 100),
+                rng.uniform(0, 10),
+                rng.uniform(60, 80),
+                rng.uniform(0, 7),
+                rng.uniform(6, 50),
+                rng.uniform(10, 40),
+                rng.uniform(0, 5),
+                rng.uniform(0, 5),
+                rng.uniform(40, 100),
+                rng.uniform(0, 10),
+                rng.uniform(0, 2),
+                rng.uniform(60, 80),
+                rng.uniform(0, 7),
+            ]
+        )
         labels.append("safe")
 
     for _ in range(per_class):  # warning
-        rows.append([rng.uniform(20, 35), rng.uniform(5, 15), rng.uniform(70, 90),
-                     rng.uniform(8, 12), rng.uniform(5, 6), rng.uniform(5, 20),
-                     rng.uniform(5, 20), rng.uniform(5, 20), rng.uniform(20, 35),
-                     rng.uniform(5, 15), rng.uniform(2, 5), rng.uniform(70, 90),
-                     rng.uniform(8, 12)])
+        rows.append(
+            [
+                rng.uniform(20, 35),
+                rng.uniform(5, 15),
+                rng.uniform(70, 90),
+                rng.uniform(8, 12),
+                rng.uniform(5, 6),
+                rng.uniform(5, 20),
+                rng.uniform(5, 20),
+                rng.uniform(5, 20),
+                rng.uniform(20, 35),
+                rng.uniform(5, 15),
+                rng.uniform(2, 5),
+                rng.uniform(70, 90),
+                rng.uniform(8, 12),
+            ]
+        )
         labels.append("warning")
 
     for _ in range(per_class):  # critical
-        rows.append([rng.uniform(0, 20), rng.uniform(10, 20), rng.uniform(80, 100),
-                     rng.uniform(12, 20), rng.uniform(0, 2), rng.uniform(0, 5),
-                     rng.uniform(20, 45), rng.uniform(20, 45), rng.uniform(0, 20),
-                     rng.uniform(10, 20), rng.uniform(5, 10), rng.uniform(80, 100),
-                     rng.uniform(12, 20)])
+        rows.append(
+            [
+                rng.uniform(0, 20),
+                rng.uniform(10, 20),
+                rng.uniform(80, 100),
+                rng.uniform(12, 20),
+                rng.uniform(0, 2),
+                rng.uniform(0, 5),
+                rng.uniform(20, 45),
+                rng.uniform(20, 45),
+                rng.uniform(0, 20),
+                rng.uniform(10, 20),
+                rng.uniform(5, 10),
+                rng.uniform(80, 100),
+                rng.uniform(12, 20),
+            ]
+        )
         labels.append("critical")
 
     return np.array(rows, dtype=np.float32), labels
