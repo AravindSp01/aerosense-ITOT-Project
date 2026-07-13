@@ -1,4 +1,3 @@
-# ingestion/gold_processor.py
 """Gold processor: reads unprocessed silver rows, engineers features via
 Polars, and writes GoldTelemetryFeatures rows to Postgres.
 Run with: python -m ingestion.gold_processor"""
@@ -120,10 +119,26 @@ def run() -> None:
     create_tables()
     logger.info("gold_processor_started", interval=settings.GOLD_BATCH_INTERVAL)
 
+    # Inactivity tracking configuration
+    last_activity_time = time.time()
+    IDLE_TIMEOUT_SECONDS = 15.0
+
     while _RUNNING:
         written, skipped = process_batch()
+
         if written or skipped:
             logger.info("gold_batch_done", written=written, skipped=skipped)
+            last_activity_time = time.time()  # Reset the inactivity clock
+        else:
+            # Check if upstream processing or data streams have completely cleared
+            idle_duration = time.time() - last_activity_time
+            if idle_duration > IDLE_TIMEOUT_SECONDS:
+                logger.info(
+                    "gold_processor_idle_timeout",
+                    reason=f"No data processed for {IDLE_TIMEOUT_SECONDS}s. Exiting loop cleanly.",
+                )
+                break
+
         time.sleep(settings.GOLD_BATCH_INTERVAL)
 
     logger.info("gold_processor_stopped")

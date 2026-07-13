@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import mlflow.sklearn
 import numpy as np
 import structlog
+from mlflow.exceptions import MlflowException
 from sklearn.base import ClassifierMixin
 
 from config.settings import settings
@@ -51,7 +52,8 @@ def _load_model() -> tuple[ClassifierMixin, str]:
 try:
     _model, _model_version = _load_model()
     MODEL_LOADED = True
-except (FileNotFoundError, OSError, pickle.UnpicklingError):
+except (FileNotFoundError, OSError, pickle.UnpicklingError, MlflowException):
+    logger.warning("No registered MLflow model found. API will start without a loaded model.")
     _model = None  # type: ignore[assignment]
     _model_version = "none"
     MODEL_LOADED = False

@@ -1,0 +1,6 @@
+pydantic==2.13.4
+pydantic-settings==2.14.2
+SQLAlchemy==2.0.51
+psycopg[binary]==3.3.4
+structlog
+python-dotenv==1.2.2

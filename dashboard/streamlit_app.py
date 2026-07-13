@@ -5,6 +5,10 @@ Run with: streamlit run dashboard/streamlit_app.py"""
 
 from __future__ import annotations
 
+# --------------------------------------------------------------------------- #
+# Config
+# --------------------------------------------------------------------------- #
+import os
 import time
 from datetime import datetime
 from json import JSONDecodeError
@@ -18,11 +22,8 @@ from db.models import GoldTelemetryFeatures, SilverTelemetry
 from db.session import get_session
 from features.engineering import FEATURE_COLUMNS
 
-# --------------------------------------------------------------------------- #
-# Config
-# --------------------------------------------------------------------------- #
+API_URL = os.environ.get("API_URL", "http://localhost:8000")
 
-API_URL = "http://localhost:8000"
 REFRESH_INTERVAL = 10  # seconds
 TELEMETRY_HISTORY = 60  # number of readings to show in live charts
 ALERTS_LIMIT = 10

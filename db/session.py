@@ -26,10 +26,20 @@ _engine = create_engine(
 _SessionFactory = sessionmaker(bind=_engine, expire_on_commit=False)
 
 
-def create_tables() -> None:
-    """Create all tables if they don't exist. Called once at consumer startup."""
-    Base.metadata.create_all(_engine)
-    logger.info("db_tables_ready")
+def create_tables(retries: int = 5, delay: float = 3.0) -> None:
+    """Create all tables, retrying if Postgres isn't ready yet."""
+    import time
+
+    for attempt in range(1, retries + 1):
+        try:
+            Base.metadata.create_all(_engine)
+            logger.info("db_tables_ready")
+            return
+        except Exception as exc:
+            logger.warning("db_tables_retry", attempt=attempt, error=str(exc))
+            if attempt == retries:
+                raise
+            time.sleep(delay)
 
 
 @contextmanager

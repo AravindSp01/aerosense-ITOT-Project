@@ -1,0 +1,2 @@
+confluent-kafka==2.15.0
+polars==1.30.0

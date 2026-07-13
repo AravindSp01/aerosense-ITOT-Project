@@ -1,4 +1,3 @@
-# ingestion/silver_processor.py
 """Silver processor: reads unprocessed bronze rows, validates and flattens
 them into silver_telemetry. Runs as a polling loop on SILVER_BATCH_INTERVAL.
 Run with: python -m ingestion.silver_processor"""
@@ -109,10 +108,26 @@ def run() -> None:
     create_tables()
     logger.info("silver_processor_started", interval=settings.SILVER_BATCH_INTERVAL)
 
+    # Inactivity tracking configuration
+    last_activity_time = time.time()
+    IDLE_TIMEOUT_SECONDS = 15.0
+
     while _RUNNING:
         written, rejected = process_batch()
+
         if written or rejected:
             logger.info("silver_batch_done", written=written, rejected=rejected)
+            last_activity_time = time.time()  # Reset the inactivity clock
+        else:
+            # Check if the pipeline has gone completely quiet
+            idle_duration = time.time() - last_activity_time
+            if idle_duration > IDLE_TIMEOUT_SECONDS:
+                logger.info(
+                    "silver_processor_idle_timeout",
+                    reason=f"No data processed for {IDLE_TIMEOUT_SECONDS}s. Exiting loop cleanly.",
+                )
+                break
+
         time.sleep(settings.SILVER_BATCH_INTERVAL)
 
     logger.info("silver_processor_stopped")

@@ -1,49 +1,46 @@
-version: "3.8"
-
 services:
+
+  # ------------------------------------------------------------------ #
+  # Infrastructure Layer (Ephemeral Storage)
+  # ------------------------------------------------------------------ #
+
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: aerosense-kafka
     ports:
-      - "9092:9092" # Exposed to the host machine for the Webots controller
+      - "9092:9092"
     environment:
-      # KRaft Mode Controller & Broker Configuration
       KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-
-      # Listeners configuration for external (host) and internal (docker) mapping
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-
-      # Auto-create telemetry topic on startup if it doesn't exist
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 2
-      # Static cluster ID required for standalone KRaft environments
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     networks:
       - aerosense-net
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: aerosense-kafka-ui
     ports:
-      - "8080:8080" # Access via http://localhost:8080
+      - "8080:8080"
     environment:
-      DYNAMIC_CONFIG_ENABLED: 'true'
-      KAFKA_CLUSTERS_0_NAME: 'aerosense-local'
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: 'kafka:29092'
+      DYNAMIC_CONFIG_ENABLED: "true"
+      KAFKA_CLUSTERS_0_NAME: aerosense-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
       kafka:
         condition: service_healthy
@@ -57,10 +54,11 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_secure_password # Match this with config/settings.py
+      POSTGRES_PASSWORD: postgres_secure_password
       POSTGRES_DB: aerosense
+    # Anonymous volume: Wipes automatically when executing: docker compose down -v
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /var/lib/postgresql/data
     networks:
       - aerosense-net
     healthcheck:
@@ -69,9 +67,155 @@ services:
       timeout: 5s
       retries: 5
 
+  mlflow:
+    image: python:3.10-slim
+    container_name: aerosense-mlflow
+    ports:
+      - "5000:5000"
+    # Anonymous volume: Wipes tracking metrics and code runs automatically on down -v
+    volumes:
+      - /mlruns
+    environment:
+      GIT_PYTHON_REFRESH: quiet
+      MLFLOW_ALLOWED_HOSTS: "*"
+    entrypoint: ["sh", "-c", "pip install --no-cache-dir 'mlflow==3.14.0' 'psycopg[binary]' && mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense --default-artifact-root /mlruns --allowed-hosts '*'"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+
+  # ------------------------------------------------------------------ #
+  # Streaming Ingestion & Core Applications
+  # ------------------------------------------------------------------ #
+
+  bronze-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: data-pipeline
+    container_name: aerosense-bronze
+    command: python -m ingestion.bronze_consumer
+    env_file: .env
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+    restart: on-failure
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-api
+    container_name: aerosense-api
+    command: uvicorn api.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    networks:
+      - aerosense-net
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dashboard
+    container_name: aerosense-streamlit
+    command: streamlit run dashboard/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+      API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+    restart: on-failure
+
+  # ------------------------------------------------------------------ #
+  # Sequential Training Pipeline Profile
+  # ------------------------------------------------------------------ #
+
+  data-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: data-pipeline
+    container_name: aerosense-processor
+    command: sh -c "python -m ingestion.silver_processor && python -m ingestion.gold_processor"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+    networks:
+      - aerosense-net
+    profiles:
+      - pipeline
+
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-api
+    container_name: aerosense-trainer
+    command: python -m models.train
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      data-processor:
+        condition: service_completed_successfully
+    networks:
+      - aerosense-net
+    profiles:
+      - pipeline
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ml-api
+    container_name: aerosense-evaluator
+    command: python -m models.evaluate
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      trainer:
+        condition: service_completed_successfully
+    networks:
+      - aerosense-net
+    profiles:
+      - pipeline
+
 networks:
   aerosense-net:
     driver: bridge
-
-volumes:
-  postgres_data:

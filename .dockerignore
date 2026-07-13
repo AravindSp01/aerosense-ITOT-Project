@@ -1,0 +1,12 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.github/
+mlruns/
+webots/
+.pytest_cache/
+htmlcov/
+*.wbproj
