@@ -2,7 +2,7 @@
 
 > A autonomous sensor intelligence project: simulated drone telemetry streams through Kafka into a medallion data architecture, trains an ML risk model, and serves live predictions through a FastAPI endpoint and Streamlit dashboard.
 
-[Youtube - Walkthrough]([https://example.com](https://www.youtube.com/watch?v=KkW7mUnlJbc&list=PLMRUo5FCnZ_o))
+[Youtube - Walkthrough](https://www.youtube.com/watch?v=KkW7mUnlJbc&list=PLMRUo5FCnZ_o)
 
 ---
 
