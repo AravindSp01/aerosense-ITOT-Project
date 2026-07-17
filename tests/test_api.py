@@ -57,7 +57,10 @@ def test_metrics_returns_200() -> None:
 
 
 def test_predict_returns_valid_risk_level() -> None:
-    with patch("api.app.MODEL_LOADED", True), patch("api.app.predict", return_value=MOCK_RESULT):
+    with (
+        patch("models.inference.MODEL_LOADED", True),
+        patch("models.inference.predict", return_value=MOCK_RESULT),
+    ):
         response = client.post("/predict", json=VALID_FEATURES)
     assert response.status_code == 200
     body = response.json()
@@ -81,6 +84,6 @@ def test_predict_422_on_out_of_range() -> None:
 
 
 def test_predict_503_when_model_not_loaded() -> None:
-    with patch("api.app.MODEL_LOADED", False):
+    with patch("models.inference.MODEL_LOADED", False):
         response = client.post("/predict", json=VALID_FEATURES)
     assert response.status_code == 503

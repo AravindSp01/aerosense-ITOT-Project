@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -22,8 +23,6 @@ from db.session import get_session
 from models.inference import PredictionResult, reload_model
 
 logger = structlog.get_logger(__name__)
-
-app = FastAPI(title="AeroSense Risk API", version="1.0.0")
 
 _start_time = time.time()
 _predictions_total: int = 0
@@ -48,13 +47,16 @@ def _model_poll_loop(interval: int = 30) -> None:
         time.sleep(interval)
 
 
-@app.on_event("startup")
-def startup() -> None:
-    # Try once immediately so the model is available ASAP if it already exists
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     reload_model()
     thread = threading.Thread(target=_model_poll_loop, daemon=True)
     thread.start()
     logger.info("model_poll_thread_started")
+    yield
+
+
+app = FastAPI(title="AeroSense Risk API", version="1.0.0", lifespan=lifespan)
 
 
 # --------------------------------------------------------------------------- #
