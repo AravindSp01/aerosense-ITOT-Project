@@ -195,6 +195,8 @@ Single multi-stage build — all stages share a common base with system deps and
 
 ```bash
 docker compose logs -f bronze-consumer
+docker compose logs -f silver-processor
+docker compose logs -f gold-processor
 docker compose logs -f api
 
 # Row counts per layer
@@ -203,7 +205,6 @@ docker exec -it aerosense-postgres psql -U postgres -d aerosense \
              (SELECT COUNT(*) FROM silver_telemetry) AS silver,
              (SELECT COUNT(*) FROM gold_telemetry_features) AS gold;"
 
-docker compose --profile pipeline up                # full pipeline
 docker compose --profile pipeline run --rm trainer  # training only
 docker compose restart api                          # reload model
 docker compose down                                 # stop
@@ -236,7 +237,7 @@ GitHub Actions runs on every push to `main`/`develop`: linting → type checking
 
 ## Known Limitations
 
-- **Navigation:** The drone follows a corrective arc rather than a straight line due to wind + proportional yaw control. Acceptable for data generation. 
+- **Navigation:** The drone follows a corrective arc rather than a straight line due to wind + proportional yaw control. Acceptable for data generation.
 - **LiDAR proxy:** The Mavic 2 Pro PROTO has no native LiDAR; `lidar_distance` is a fixed proxy value.
 - **Class imbalance:** Default thresholds skew heavily toward `safe`. Longer runs or lower thresholds produce more `warning`/`critical` examples.
 

@@ -56,7 +56,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_secure_password
       POSTGRES_DB: aerosense
-    # Anonymous volume: Wipes automatically when executing: docker compose down -v
     volumes:
       - /var/lib/postgresql/data
     networks:
@@ -72,7 +71,6 @@ services:
     container_name: aerosense-mlflow
     ports:
       - "5000:5000"
-    # Anonymous volume: Wipes tracking metrics and code runs automatically on down -v
     volumes:
       - /mlruns
     environment:
@@ -103,6 +101,40 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+    restart: on-failure
+
+  silver-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: data-pipeline
+    container_name: aerosense-silver
+    command: python -m ingestion.silver_processor
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - aerosense-net
+    restart: on-failure
+
+  gold-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: data-pipeline
+    container_name: aerosense-gold
+    command: python -m ingestion.gold_processor
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
+    depends_on:
       postgres:
         condition: service_healthy
     networks:
@@ -163,21 +195,6 @@ services:
   # Sequential Training Pipeline Profile
   # ------------------------------------------------------------------ #
 
-  data-processor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: data-pipeline
-    container_name: aerosense-processor
-    command: sh -c "python -m ingestion.silver_processor && python -m ingestion.gold_processor"
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
-    networks:
-      - aerosense-net
-    profiles:
-      - pipeline
-
   trainer:
     build:
       context: .
@@ -190,8 +207,8 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@postgres:5432/aerosense
       MLFLOW_TRACKING_URI: http://mlflow:5000
     depends_on:
-      data-processor:
-        condition: service_completed_successfully
+      mlflow:
+        condition: service_started
     networks:
       - aerosense-net
     profiles:

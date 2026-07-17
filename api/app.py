@@ -1,11 +1,12 @@
 # api/app.py
-"""FastAPI inference endpoint. Loads the risk model once at startup.
+"""FastAPI inference endpoint.
 POST /predict  -- run inference on a gold feature row
 GET  /health   -- liveness + model/db status
 GET  /metrics  -- in-memory prediction counters"""
 
 from __future__ import annotations
 
+import threading
 import time
 from collections import defaultdict
 
@@ -16,19 +17,44 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+import models.inference as _inference
 from db.session import get_session
-from models.inference import MODEL_LOADED, PredictionResult, predict
+from models.inference import PredictionResult, reload_model
 
 logger = structlog.get_logger(__name__)
 
 app = FastAPI(title="AeroSense Risk API", version="1.0.0")
 
 _start_time = time.time()
-
-# In-memory counters -- reset on restart.
 _predictions_total: int = 0
 _predictions_by_risk: dict[str, int] = defaultdict(int)
 _confidence_sum: float = 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Background model poller
+# --------------------------------------------------------------------------- #
+
+
+def _model_poll_loop(interval: int = 30) -> None:
+    """Poll MLflow every `interval` seconds and hot-reload if a new model version appears."""
+    while True:
+        try:
+            loaded = reload_model()
+            if loaded:
+                logger.info("model_hot_reloaded", version=_inference._model_version)
+        except (RuntimeError, ValueError) as exc:
+            logger.warning("model_poll_error", error=str(exc))
+        time.sleep(interval)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    # Try once immediately so the model is available ASAP if it already exists
+    reload_model()
+    thread = threading.Thread(target=_model_poll_loop, daemon=True)
+    thread.start()
+    logger.info("model_poll_thread_started")
 
 
 # --------------------------------------------------------------------------- #
@@ -37,8 +63,6 @@ _confidence_sum: float = 0.0
 
 
 class FeatureInput(BaseModel):
-    """13 features matching FEATURE_COLUMNS exactly."""
-
     battery: float = Field(..., ge=0.0, le=100.0)
     speed: float = Field(..., ge=0.0, le=100.0)
     motor_power: float = Field(..., ge=0.0)
@@ -81,23 +105,20 @@ class MetricsResponse(BaseModel):
 
 @app.post("/predict", response_model=PredictResponse)
 def predict_endpoint(body: FeatureInput) -> PredictResponse:
-    """Run risk inference on a single feature row."""
     global _predictions_total, _confidence_sum
 
-    if not MODEL_LOADED:
+    if not _inference.MODEL_LOADED:
         raise HTTPException(
-            status_code=503,
-            detail="Model not loaded. Run python -m models.train first.",
+            status_code=503, detail="Model not loaded. Run the training pipeline first."
         )
 
     try:
-        result: PredictionResult = predict(body.model_dump())
+        result: PredictionResult = _inference.predict(body.model_dump())
     except KeyError as exc:
         raise HTTPException(status_code=422, detail=f"Missing feature: {exc}") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    # Update counters.
     _predictions_total += 1
     _predictions_by_risk[result.risk_level] += 1
     _confidence_sum += result.confidence
@@ -116,7 +137,6 @@ def predict_endpoint(body: FeatureInput) -> PredictResponse:
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    """Liveness check: model status + DB connectivity."""
     db_ok = False
     try:
         with get_session() as session:
@@ -127,7 +147,7 @@ def health() -> HealthResponse:
 
     return HealthResponse(
         status="ok",
-        model_loaded=MODEL_LOADED,
+        model_loaded=_inference.MODEL_LOADED,
         db_connected=db_ok,
         uptime_seconds=round(time.time() - _start_time, 1),
     )
@@ -135,7 +155,6 @@ def health() -> HealthResponse:
 
 @app.get("/metrics", response_model=MetricsResponse)
 def metrics() -> MetricsResponse:
-    """In-memory prediction counters since last restart."""
     avg_confidence = _confidence_sum / _predictions_total if _predictions_total > 0 else 0.0
     return MetricsResponse(
         predictions_total=_predictions_total,
@@ -146,5 +165,4 @@ def metrics() -> MetricsResponse:
 
 @app.get("/")
 def root() -> RedirectResponse:
-    """Redirect root to the auto-generated API docs."""
     return RedirectResponse(url="/docs")

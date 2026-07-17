@@ -20,7 +20,19 @@ from sqlalchemy import desc, select, text
 
 from db.models import GoldTelemetryFeatures, SilverTelemetry
 from db.session import get_session
-from features.engineering import FEATURE_COLUMNS
+
+FEATURE_COLUMNS = [
+    "speed",
+    "motor_power",
+    "altitude",
+    "abs_roll",
+    "abs_pitch",
+    "battery_mean",
+    "speed_mean",
+    "altitude_std",
+    "motor_power_mean",
+    "wind_force_max",
+]
 
 API_URL = os.environ.get("API_URL", "http://localhost:8000")
 

@@ -24,7 +24,7 @@ from xgboost import XGBClassifier
 from config.settings import settings
 from db.models import GoldTelemetryFeatures
 from db.session import get_session
-from features.engineering import FEATURE_COLUMNS
+from features.engineering import TRAINING_COLUMNS as FEATURE_COLUMNS
 from models.evaluate import RISK_LEVELS, compute_metrics, confusion_matrix_png
 
 logger = structlog.get_logger(__name__)
@@ -282,7 +282,7 @@ def run_training() -> None:
             }
         )
 
-        # mlflow.log_metrics(best_metrics)
+        mlflow.log_metrics(best_metrics)
 
         if isinstance(best_model, XGBClassifier):
             mlflow.xgboost.log_model(

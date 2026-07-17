@@ -8,15 +8,27 @@ import polars as pl
 
 from config.settings import settings
 
-# The 13 feature columns the ML model trains and predicts on.
-# This list is the single source of truth -- referenced by train.py,
-# inference.py, and the API FeatureInput schema.
 FEATURE_COLUMNS: list[str] = [
     "battery",
     "speed",
     "motor_power",
     "wind_force",
     "lidar_distance",
+    "altitude",
+    "abs_roll",
+    "abs_pitch",
+    "battery_mean",
+    "speed_mean",
+    "altitude_std",
+    "motor_power_mean",
+    "wind_force_max",
+]
+
+# Excludes raw threshold columns (battery, wind_force, lidar_distance)
+# to prevent the model from trivially learning the labelling rules.
+TRAINING_COLUMNS: list[str] = [
+    "speed",
+    "motor_power",
     "altitude",
     "abs_roll",
     "abs_pitch",
